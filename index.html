@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hari</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1c26;
+    --ink: #e6eef2;
+    --muted: #8aa2b0;
+    --hot: #f2a65a;
+    --line: rgba(230, 238, 242, .14);
+    --font: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.6; }
+  a { color: inherit; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--hot); outline-offset: 3px; }
+
+  nav {
+    position: fixed; inset: 0 0 auto 0; z-index: 10; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 clamp(16px, 4vw, 48px);
+    background: rgba(11, 28, 38, .72); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .brand { font-weight: 700; font-size: 1.1rem; }
+  nav ul { display: flex; gap: clamp(14px, 3vw, 32px); list-style: none; }
+  nav ul a { color: var(--muted); transition: color .2s; }
+  nav ul a:hover, nav ul a.active { color: var(--ink); }
+
+  #home {
+    position: relative; height: 100vh; min-height: 480px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 55% at 15% 85%, rgba(98, 56, 170, .30), transparent 70%),
+      radial-gradient(ellipse 55% 50% at 88% 15%, rgba(34, 150, 118, .22), transparent 70%),
+      radial-gradient(ellipse 70% 60% at 55% 50%, rgba(40, 90, 130, .18), transparent 75%),
+      var(--bg);
+  }
+  #flow { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; }
+  .hero-text {
+    position: absolute; left: clamp(20px, 6vw, 80px); bottom: clamp(40px, 12vh, 120px);
+    pointer-events: none; max-width: 90%;
+  }
+  .hero-text h1 { font-size: clamp(3.5rem, 14vw, 10rem); line-height: .95; font-weight: 700; letter-spacing: -.03em; }
+  .hero-text p { margin-top: 1rem; color: var(--muted); font-size: clamp(1rem, 2vw, 1.25rem); }
+
+  section.page { min-height: 70vh; padding: 96px clamp(20px, 6vw, 80px); border-top: 1px solid var(--line); }
+  section.page h2 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.02em; margin-bottom: 1.25rem; }
+  section.page p { max-width: 60ch; color: var(--muted); font-size: 1.1rem; }
+  .wip { color: var(--hot); }
+
+  footer { padding: 28px clamp(20px, 6vw, 80px); border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<nav aria-label="Main">
+  <a class="brand" href="#home">Harikrishnan S</a>
+  <ul>
+    <li><a href="#home" class="active">Home</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="#projects">Projects</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+</nav>
+
+<header id="home">
+  <canvas id="flow" aria-hidden="true"></canvas>
+  <div class="hero-text">
+    <h1>Hari</h1>
+    <p>Working on it &mdash; under construction.</p>
+  </div>
+</header>
+
+<section id="about" class="page">
+  <h2>About</h2>
+  <p class="wip"> &mdash; under construction.</p>
+</section>
+
+<section id="projects" class="page">
+  <h2>Projects</h2>
+  <p class="wip"> &mdash; under construction.</p>
+</section>
+
+<section id="contact" class="page">
+  <h2>Contact</h2>
+  <p class="wip"> &mdash; email : harisuresh215@gmail.com</p>
+</section>
+
+<footer>Working on it &mdash; under construction.</footer>
+
+<script>
+(() => {
+  // Evolving constellation over a square grid. The cursor is a soft lens: stars flow around it,
+  // nearby links and grid nodes light up, and a click sends out a shockwave.
+  const canvas = document.getElementById('flow');
+  const ctx = canvas.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const LINK = 95, LENS = 150, LIT = 210, MAXV = 1.5, GRID = 56;
+  const HMIN = 125, HMAX = 300, BASE = [145, 185, 275]; // green, teal, purple
+  let W, H, dpr, stars = [], nxt, head, cols, rows, T = 0, gridImg, ripples = [];
+  const ptr = { x: -9999, y: -9999, active: false };
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clampH = h => Math.min(HMAX, Math.max(HMIN, h));
+
+  function star(x, y, hue, age) {
+    return { x, y, vx: rnd(-.25, .25), vy: rnd(-.25, .25), r: rnd(.7, 2.3), hue, age,
+             life: rnd(900, 2600), hs: 0, hw: 0, ph: rnd(0, 6.28) };
+  }
+  function buildGrid() {
+    gridImg = document.createElement('canvas');
+    gridImg.width = W * dpr; gridImg.height = H * dpr;
+    const g = gridImg.getContext('2d');
+    g.scale(dpr, dpr);
+    for (let i = 0, x = 0; x <= W; x += GRID, i++) {
+      g.strokeStyle = i % 4 ? 'rgba(150,190,220,0.05)' : 'rgba(150,190,220,0.11)';
+      g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, H); g.stroke();
+    }
+    for (let i = 0, y = 0; y <= H; y += GRID, i++) {
+      g.strokeStyle = i % 4 ? 'rgba(150,190,220,0.05)' : 'rgba(150,190,220,0.11)';
+      g.beginPath(); g.moveTo(0, y + .5); g.lineTo(W, y + .5); g.stroke();
+    }
+  }
+  function resize() {
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildGrid();
+    const n = Math.min(460, Math.floor(W * H / 4200));
+    stars = Array.from({ length: n }, () =>
+      star(rnd(0, W), rnd(0, H), BASE[(Math.random() * 3) | 0] + rnd(-15, 15), rnd(0, 1500)));
+    nxt = new Int32Array(n);
+    cols = Math.ceil(W / LINK) + 1; rows = Math.ceil(H / LINK) + 1;
+    head = new Int32Array(cols * rows);
+  }
+  function reborn(p) {
+    const par = stars[(Math.random() * stars.length) | 0];
+    const hue = Math.random() < 0.06 ? rnd(HMIN, HMAX) : par.hue + rnd(-25, 25);
+    Object.assign(p, star(par.x + rnd(-40, 40), par.y + rnd(-40, 40), clampH(hue), 0));
+  }
+  const alpha = p => Math.max(0, Math.min(1, p.age / 90, (p.life - p.age) / 90));
+
+  function frame() {
+    T++;
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(gridImg, 0, 0, W, H);
+
+    // lit grid nodes + soft glow under the cursor
+    if (ptr.active) {
+      const gl = ctx.createRadialGradient(ptr.x, ptr.y, 0, ptr.x, ptr.y, LIT);
+      gl.addColorStop(0, 'rgba(242,166,90,0.13)'); gl.addColorStop(1, 'rgba(242,166,90,0)');
+      ctx.fillStyle = gl; ctx.fillRect(ptr.x - LIT, ptr.y - LIT, LIT * 2, LIT * 2);
+      ctx.lineWidth = 1;
+      for (let gx = Math.floor((ptr.x - LIT) / GRID) * GRID; gx < ptr.x + LIT; gx += GRID)
+        for (let gy = Math.floor((ptr.y - LIT) / GRID) * GRID; gy < ptr.y + LIT; gy += GRID) {
+          const d = Math.hypot(gx - ptr.x, gy - ptr.y);
+          if (d > LIT) continue;
+          ctx.strokeStyle = `rgba(255,205,150,${(1 - d / LIT) * 0.75})`;
+          ctx.beginPath(); ctx.moveTo(gx - 4, gy + .5); ctx.lineTo(gx + 5, gy + .5);
+          ctx.moveTo(gx + .5, gy - 4); ctx.lineTo(gx + .5, gy + 5); ctx.stroke();
+        }
+    }
+
+    for (const r of ripples) { r.r += 5; r.a -= 0.012; }
+    ripples = ripples.filter(r => r.a > 0);
+    const shift = Math.sin(T * 0.0007) * 22;
+    head.fill(-1);
+    for (let i = 0; i < stars.length; i++) {
+      const p = stars[i];
+      p.age++; p.hs = p.hw = 0;
+      if (p.age > p.life) reborn(p);
+      p.vx += Math.cos(p.y * 0.004 + T * 0.003) * 0.004;
+      p.vy += Math.sin(p.x * 0.004 - T * 0.003) * 0.004;
+      if (ptr.active) {                       // lens: stars flow around the cursor, never into it
+        const dx = p.x - ptr.x, dy = p.y - ptr.y, d = Math.hypot(dx, dy);
+        if (d < LENS && d > 0.5) {
+          const f = (1 - d / LENS) ** 2;
+          p.vx += dx / d * f * 0.28 - dy / d * f * 0.12;
+          p.vy += dy / d * f * 0.28 + dx / d * f * 0.12;
+        }
+      }
+      for (const r of ripples) {              // click shockwave
+        const dx = p.x - r.x, dy = p.y - r.y, d = Math.hypot(dx, dy);
+        if (Math.abs(d - r.r) < 28 && d > 0.5) { p.vx += dx / d * r.a * 0.5; p.vy += dy / d * r.a * 0.5; }
+      }
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > MAXV) { p.vx *= MAXV / sp; p.vy *= MAXV / sp; }
+      p.vx *= 0.994; p.vy *= 0.994;
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -10) p.x = W + 10; else if (p.x > W + 10) p.x = -10;
+      if (p.y < -10) p.y = H + 10; else if (p.y > H + 10) p.y = -10;
+      const c = Math.min(cols - 1, Math.max(0, (p.x / LINK) | 0)) + Math.min(rows - 1, Math.max(0, (p.y / LINK) | 0)) * cols;
+      nxt[i] = head[c]; head[c] = i;
+    }
+
+    ctx.lineWidth = 1;
+    for (let i = 0; i < stars.length; i++) {
+      const a = stars[i], aa = alpha(a);
+      const cx = Math.min(cols - 1, Math.max(0, (a.x / LINK) | 0)), cy = Math.min(rows - 1, Math.max(0, (a.y / LINK) | 0));
+      for (let ny = Math.max(0, cy - 1); ny <= Math.min(rows - 1, cy + 1); ny++)
+        for (let nx = Math.max(0, cx - 1); nx <= Math.min(cols - 1, cx + 1); nx++)
+          for (let j = head[ny * cols + nx]; j !== -1; j = nxt[j]) {
+            if (j <= i) continue;
+            const b = stars[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+            if (d >= LINK) continue;
+            const w = 1 - d / LINK;
+            a.hs += b.hue * w; a.hw += w; b.hs += a.hue * w; b.hw += w;
+            let boost = 0, light = 65;
+            if (ptr.active) {
+              const m = Math.hypot((a.x + b.x) / 2 - ptr.x, (a.y + b.y) / 2 - ptr.y);
+              boost = Math.max(0, 1 - m / LIT); light += boost * 20;
+            }
+            ctx.strokeStyle = `hsla(${(a.hue + b.hue) / 2},70%,${light}%,${Math.min(0.9, w * (0.38 + boost * 0.9)) * Math.min(aa, alpha(b))})`;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          }
+    }
+
+    for (const p of stars) {
+      if (p.hw > 0) p.hue += (p.hs / p.hw - p.hue) * 0.01;
+      let near = BASE[0] + shift;
+      for (const b of BASE) if (Math.abs(p.hue - (b + shift)) < Math.abs(p.hue - near)) near = b + shift;
+      p.hue = clampH(p.hue + (near - p.hue) * 0.004 + rnd(-.12, .12));
+      const tw = 0.75 + 0.25 * Math.sin(T * 0.03 + p.ph);       // twinkle
+      let k = 1;
+      if (ptr.active) k += Math.max(0, 1 - Math.hypot(p.x - ptr.x, p.y - ptr.y) / LIT) * 0.9;
+      const al = Math.min(1, alpha(p) * tw * k);
+      if (p.r > 1.7) {                                           // soft halo on the larger stars
+        ctx.fillStyle = `hsla(${p.hue},80%,70%,${al * 0.13})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4, 0, 6.2832); ctx.fill();
+      }
+      ctx.fillStyle = `hsla(${p.hue},80%,76%,${al})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (k > 1 ? 1 + (k - 1) * 0.35 : 1), 0, 6.2832); ctx.fill();
+    }
+
+    for (const r of ripples) {
+      ctx.strokeStyle = `rgba(242,166,90,${r.a * 0.6})`;
+      ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.2832); ctx.stroke();
+    }
+    if (ptr.active) {                                            // lens ring + centre
+      ctx.strokeStyle = 'rgba(242,166,90,0.28)';
+      ctx.beginPath(); ctx.arc(ptr.x, ptr.y, LENS * 0.55, 0, 6.2832); ctx.stroke();
+      ctx.fillStyle = '#f2a65a';
+      ctx.beginPath(); ctx.arc(ptr.x, ptr.y, 2.5, 0, 6.2832); ctx.fill();
+    }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+
+  function move(e) {
+    const r = canvas.getBoundingClientRect();
+    ptr.x = e.clientX - r.left; ptr.y = e.clientY - r.top;
+    ptr.active = ptr.y >= 0 && ptr.y <= r.height;
+  }
+  addEventListener('pointermove', move, { passive: true });
+  addEventListener('pointerdown', e => { move(e); if (ptr.active) ripples.push({ x: ptr.x, y: ptr.y, r: 10, a: 1 }); }, { passive: true });
+  addEventListener('pointerup', e => { if (e.pointerType === 'touch') ptr.active = false; });
+  document.addEventListener('pointerleave', () => ptr.active = false);
+  addEventListener('resize', resize);
+
+  const links = [...document.querySelectorAll('nav ul a')];
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + e.target.id));
+  }), { rootMargin: '-45% 0px -50% 0px' });
+  document.querySelectorAll('header[id], section[id]').forEach(s => io.observe(s));
+
+  resize();
+  if (reduce) frame(); else requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
